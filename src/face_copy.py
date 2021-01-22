@@ -20,7 +20,6 @@ from frogmon.uConfig     import CONF
 from frogmon.uLogger     import LOG
 from frogmon.uCommon     import COM
 from frogmon.uGlobal     import GLOB
-#from frogmon.ulogger import LOG
 
 # 프로그램 시작	
 GLOB.directoryInit(GLOB.whoami(), "DOORs")
@@ -33,7 +32,7 @@ dev_id    = GLOB.readConfig(configFileNM, 'AGENT', 'id', '0')
 
 # 함수 정의
 mWhoami = GLOB.whoami()
-mUsbDir = "/media/%s/" % mWhoami
+mUsbDir = "/mnt/usb_stick"
 mFaceDir = COM.gHomeDir + "faces/"
 
 GLOB.folderMaker(mFaceDir)
@@ -47,20 +46,13 @@ mSourcePath = []
 def usbDir():
 	return os.listdir(mUsbDir)
 
-def getDirs():
-	dirs = []
-	try:
-		for usb in usbDir():
-			dirs.append(r"%s%s/faces/" % (mUsbDir, usb))
-	except Exception as e :
-		print("[ERROR]: %s" % e)
-	
-	return dirs
-
 def copyFileList(srcPath, destPath):
 	print("copyFileList (%s=>%s)" % (srcPath, destPath))
+	if not GLOB.folderExitst(srcPath):
+		return False
 	try:
 		files = os.listdir(destPath)
+		print(files)
 		for afile in files:
 			os.remove(destPath+afile)
 		files = os.listdir(srcPath)
@@ -81,23 +73,45 @@ print('**  PRODUCT = %s' % dev_id)
 print('--------------------------------------------------')
 print('')
 
+# ASSUMED THAT THIS COMMAND HAS ALREADY BEEN RUN
+# sudo mkdir /mnt/usb_stick
+
+def run_command(command):
+	# start = time.time()
+	ret_code, output = subprocess.getstatusoutput(command)
+	if ret_code == 1:
+		#raise Exception("FAILED: %s" % command)
+		print("FAILED: %s" % command)
+	# end = time.time()
+	# print "Finished in %s seconds" % (end - start)
+	return output.splitlines() 
+
+def uuid_from_line(line):
+	start_str = "UUID=\""
+	example_uuid = "6784-3407"
+	uuid_start = line.index(start_str) + len(start_str)
+	uuid_end = uuid_start + len(example_uuid)
+	return line[uuid_start: uuid_end]
+
 checkDir = 0
 while True:
 	time.sleep(1)
 
-	Paths = []
-	Paths = getDirs()
-	if checkDir == 0:
-		if len(Paths) > 0:	
-			for aPath in Paths:
-				if copyFileList(aPath, mFaceDir):
-					LOG.writeLn("[face_copy]: Sucess!!")
-					checkDir = 1
-	else :
-		if len(Paths) == 0:
-			checkDir = 0
+	try:
+		output = run_command("sudo blkid | grep -v boot | grep -v mm")
+		if len(output) > 0:
+			# ['/dev/sda1: LABEL="KINGSTON" UUID="6784-3407" TYPE="vfat" PARTUUID="459720e1-01"']
+			for usb_device in output:
+				if not GLOB.folderExitst(mUsbDir):
+					run_command("sudo mkdir %s" % mUsbDir)
+				command = "sudo mount --uuid %s %s -o iocharset=utf8" % (uuid_from_line(usb_device), mUsbDir)
+				print(command)
+				run_command(command)
+				break
 
-	
-	
-
-	
+			if copyFileList("/mnt/usb_stick/faces/", mFaceDir):
+				LOG.writeLn("[face_copy]: Sucess!!")
+				time.sleep(5)
+				run_command("sudo reboot")
+	except Exception as e :
+		print("usb not detected or faces not found: %s" % e)

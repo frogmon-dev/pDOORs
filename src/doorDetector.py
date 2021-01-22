@@ -20,7 +20,6 @@ import time
 from frogmon.uCommon import COM
 from frogmon.uLogger import LOG
 from frogmon.uGlobal import GLOB
-from frogmon.uRequest import REQUEST
 
 def DoorOpen():
     door_pin = 21
@@ -151,7 +150,6 @@ while True:
                             LOG.writeLn("Door Open with %s" % name)      
                             #todo Open Door and Send status to server
                             DoorOpen()
-                            REQUEST.updateDIYs(user_id, dev_id)
                             time.sleep(1)
                             GPIO.output(led_pin, 0)
                             time.sleep(1)
